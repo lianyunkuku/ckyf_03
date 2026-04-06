@@ -25,12 +25,13 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "ps2.h"
+#include "encoder.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+Encoder EncodeA,EncodeB,EncodeC,EncodeD;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -46,7 +47,15 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+extern osMessageQueueId_t MotorCSpeedQueue04Handle;
+extern osMessageQueueId_t MPUyawDataQueue01Handle;
+extern osMessageQueueId_t MotorASpeedQueue02Handle;
+extern osMessageQueueId_t MotorBSpeedQueue03Handle;
+extern osMessageQueueId_t MotorDSpeedQueue05Handle;
+extern osMessageQueueId_t MotorAPosiQueue07Handle;
+extern osMessageQueueId_t MotorBPosiQueue07Handle;
+extern osMessageQueueId_t MotorCPosiQueue08Handle;
+extern osMessageQueueId_t MotorDPosiQueue09Handle;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -90,12 +99,20 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_I2C2_Init();
   MX_TIM2_Init();
   MX_TIM3_Init();
-  MX_TIM4_Init();
+  MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
-  
+	 CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+  DWT->CYCCNT = 0;
+  DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+  HAL_TIM_Base_Start(&htim2);
+  HAL_TIM_Base_Start_IT(&htim3);
+  HAL_TIM_PWM_Start(&htim2,TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim2,TIM_CHANNEL_2);
+  HAL_TIM_PWM_Start(&htim2,TIM_CHANNEL_3);
+  HAL_TIM_PWM_Start(&htim2,TIM_CHANNEL_4);
+	PS2_SetInit();
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -158,7 +175,21 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+  {
+    if(GPIO_Pin==E1A_Pin||GPIO_Pin==E1B_Pin){
+      EncodeProcess(E1A_GPIO_Port,E1A_Pin,E1B_Pin,&EncodeA);
+    }
+    if(GPIO_Pin==E2A_Pin||GPIO_Pin==E2B_Pin){
+      EncodeProcess(E2A_GPIO_Port,E2A_Pin,E2B_Pin,&EncodeB);
+    }
+    if(GPIO_Pin==E3A_Pin||GPIO_Pin==E3B_Pin){
+      EncodeProcess(E3A_GPIO_Port,E3A_Pin,E3B_Pin,&EncodeC);
+    }
+    if(GPIO_Pin==E4A_Pin||GPIO_Pin==E4B_Pin){
+      EncodeProcess(E4A_GPIO_Port,E4A_Pin,E4B_Pin,&EncodeD);
+    }
+  }
 /* USER CODE END 4 */
 
 /**
@@ -179,7 +210,27 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
-
+	if(htim->Instance == TIM3){
+    float MotorSpeedA=0,MotorSpeedB=0,MotorSpeedC=0,MotorSpeedD=0;
+    float MotorAPosi=0,MotorBPosi=0,MotorCPosi=0,MotorDPosi=0;
+    MotorAPosi=EncodeA.cnt,MotorBPosi=EncodeB.cnt,MotorCPosi=EncodeC.cnt,MotorDPosi=EncodeD.cnt;
+    MotorSpeedA=(float)MotorAPosi-EncodeA.last_cnt;
+    EncodeA.last_cnt=MotorAPosi;
+    MotorSpeedB=(float)MotorBPosi-EncodeB.last_cnt;
+    EncodeB.last_cnt=MotorBPosi;
+    MotorSpeedC=-(float)(MotorCPosi-EncodeC.last_cnt);
+    EncodeC.last_cnt=MotorCPosi;
+    MotorSpeedD=-(float)(MotorDPosi-EncodeD.last_cnt);
+    EncodeD.last_cnt=MotorDPosi;
+    osMessageQueuePut(MotorASpeedQueue02Handle,&MotorSpeedA,0,0);
+    osMessageQueuePut(MotorBSpeedQueue03Handle,&MotorSpeedB,0,0);
+    osMessageQueuePut(MotorCSpeedQueue04Handle,&MotorSpeedC,0,0);
+    osMessageQueuePut(MotorDSpeedQueue05Handle,&MotorSpeedD,0,0);
+    osMessageQueuePut(MotorAPosiQueue07Handle,&MotorAPosi,0,0);
+    osMessageQueuePut(MotorBPosiQueue07Handle,&MotorBPosi,0,0);
+    osMessageQueuePut(MotorCPosiQueue08Handle,&MotorCPosi,0,0);
+    osMessageQueuePut(MotorDPosiQueue09Handle,&MotorDPosi,0,0);
+  }
   /* USER CODE END Callback 1 */
 }
 

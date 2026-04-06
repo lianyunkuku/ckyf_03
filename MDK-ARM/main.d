@@ -42,5 +42,5 @@
 .\main.o: ../Core/Inc/i2c.h
 .\main.o: ../Core/Inc/tim.h
 .\main.o: ../Core/Inc/gpio.h
-.\main.o: ../User/encoder/encoder.h
 .\main.o: ../User/ps2control/ps2.h
+.\main.o: ../User/encoder/encoder.h

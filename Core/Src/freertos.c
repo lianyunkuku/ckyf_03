@@ -56,10 +56,10 @@ pid_type_def posiX,posiY,posiT,speeA,speeB,speeC,speeD;
 /* USER CODE BEGIN Variables */
 fp32 kpidX[3]={0.6f,0.0f,0.0f},kpidY[3]={0.6f,0.0f,0.0f},kpidT[3]={0.9f,0.0f,0.0f};
 fp32 kpidA[3]={10.0f,0.0f,0.0f},kpidB[3]={10.0f,0.0f,0.0f},kpidC[3]={10.0f,0.0f,0.0f},kpidD[3]={10.0f,0.0f,0.0f};
-  uint8_t flag=1,roll_flag=0;
+  uint8_t flag=1,roll_flag=0,tuoluo_flag=0;
 fp32 first_omega=0,d_omega=0;
 fp32 x_set=0,y_set=0,t_set=0;
-fp32 t_conSpeed=0;
+fp32 t_conSpeed=0,tuo_speed=0;
 fp32 now_speeA=0,now_speeB=0,now_speeC=0,now_speeD=0;
 uint8_t cnt=0,lx=0,ly=0,rx=0,ry=0;
 int initValue=1;
@@ -275,14 +275,14 @@ void MPU6050task02(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    if(initValue2=MPU6050_DMP_Get_Date(&a,&b,&yaw),MPU6050_DMP_Get_Date(&a,&b,&yaw)==0){
+    if(MPU6050_DMP_Get_Date(&a,&b,&yaw)==0){
 			
 			//if(yaw<0)yaw+=360;
 			if(cnt<200){
 				cnt++;
 			}
 			osMessageQueuePut(MPUyawDataQueue01Handle,&yaw,0,0);
-			vTaskDelay(10);
+			vTaskDelay(20);
 		}else{
 			vTaskDelay(1);
 		}
@@ -370,7 +370,7 @@ void PIDTask03(void *argument)
       
 			}else{
       // 没有手动旋转，计算位置环
-      
+      d_omega=first_omega-Omega;
       while(d_omega<-180){d_omega+=360;}
       while(d_omega>180){d_omega-=360;}
       
@@ -379,10 +379,16 @@ void PIDTask03(void *argument)
 			y_SetSpeed=PID_calc(&posiY,0,y_set);//y(-230-230)
 			t_SetSpeed=PID_calc(&posiT,0,d_omega);//T(-540-540)
 			
-			tar_speed[0]=x_SetSpeed+y_SetSpeed+t_SetSpeed+t_conSpeed;
-			tar_speed[1]=x_SetSpeed-y_SetSpeed+t_SetSpeed+t_conSpeed;
-			tar_speed[2]=x_SetSpeed+y_SetSpeed-t_SetSpeed-t_conSpeed;
-			tar_speed[3]=x_SetSpeed-y_SetSpeed-t_SetSpeed-t_conSpeed;
+			if(tuoluo_flag==1){
+				t_SetSpeed=0;
+				fp32 a=x_SetSpeed,b=y_SetSpeed;
+				x_SetSpeed=a*cosf(-d_omega*PI/180.0f)-b*sinf(-d_omega*PI/180.0f);
+				y_SetSpeed=a*sinf(-d_omega*PI/180.0f)+b*cosf(-d_omega*PI/180.0f);
+			}
+			tar_speed[0]=x_SetSpeed+y_SetSpeed+t_SetSpeed+t_conSpeed+tuo_speed;
+			tar_speed[1]=x_SetSpeed-y_SetSpeed+t_SetSpeed+t_conSpeed+tuo_speed;
+			tar_speed[2]=x_SetSpeed+y_SetSpeed-t_SetSpeed-t_conSpeed-tuo_speed;
+			tar_speed[3]=x_SetSpeed-y_SetSpeed-t_SetSpeed-t_conSpeed-tuo_speed;
 			pwm[0]=(uint16_t)fabs(PID_calc(&speeA,-now_speeA,tar_speed[0]));
 			pwm[1]=(uint16_t)fabs(PID_calc(&speeB,-now_speeB,tar_speed[1]));
 			pwm[2]=(uint16_t)fabs(PID_calc(&speeC,-now_speeC,tar_speed[2]));
@@ -443,6 +449,15 @@ void ps2Task04(void *argument)
 				case PSB_PINK:
 					t_conSpeed=-30;
 				
+					break;
+				case PSB_GREEN:
+					if(tuoluo_flag==0){
+						tuoluo_flag=1;
+						tuo_speed=100;
+					}else{
+						tuoluo_flag=0;
+						tuo_speed=0;
+					}
 					break;
 				default:
 					x_set=0;
