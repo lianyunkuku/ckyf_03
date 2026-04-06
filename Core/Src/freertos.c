@@ -63,7 +63,7 @@ fp32 t_conSpeed=0,tuo_speed=0;
 fp32 now_speeA=0,now_speeB=0,now_speeC=0,now_speeD=0;
 uint8_t cnt=0,lx=0,ly=0,rx=0,ry=0;
 int initValue=1;
-int initValue2=1;
+int initValue2=1;//总之是一堆用上没用上的还有debug用的一些变量
 /* USER CODE END Variables */
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
@@ -266,12 +266,12 @@ void StartDefaultTask(void *argument)
 void MPU6050task02(void *argument)
 {
   /* USER CODE BEGIN MPU6050task02 */
-	fp32 yaw=0;
-	fp32 a=0,b=0;
+	fp32 yaw=0;//yaw值
+	fp32 a=0,b=0;//临时变量，无意义，只是作为函数传入的变量使用
 	initValue=MPU6050_DMP_init();
 	 while(initValue!=0){
 			initValue=MPU6050_DMP_init();
-	 }
+	 }//MPU初始化，初始化失败就一直初始化
   /* Infinite loop */
   for(;;)
   {
@@ -280,11 +280,11 @@ void MPU6050task02(void *argument)
 			//if(yaw<0)yaw+=360;
 			if(cnt<200){
 				cnt++;
-			}
+			}//计数值，由于dmp的算法原因，上电一段时间后mpu读取的值才是正确的，所以用计数值来确保读取角度是正确的
 			osMessageQueuePut(MPUyawDataQueue01Handle,&yaw,0,0);
-			vTaskDelay(20);
+			vTaskDelay(10);//如果读取到数据就传入队列，读取频率和pid任务频率相同
 		}else{
-			vTaskDelay(1);
+			vTaskDelay(1);//未读取到则延时一个时间片
 		}
   }
   /* USER CODE END MPU6050task02 */
@@ -303,7 +303,7 @@ void PIDTask03(void *argument)
 
 	uint16_t pwm[4]={0};
 	fp32 Omega=0;
-	fp32 tar_speed[4]={0};//A1��Ӧ��ǰ��B2��Ӧ���C3��Ӧ�Һ�D4��Ӧ��ǰ
+	fp32 tar_speed[4]={0};//
 	fp32 Acnt=0,Bcnt=0,Ccnt=0,Dcnt=0;
 	fp32 x_now=0,x_tar=0,y_now=0,y_tar=0,t_now=0,t_tar=0;
 	fp32 x_SetSpeed=0,y_SetSpeed=0,t_SetSpeed=0;
@@ -311,9 +311,9 @@ void PIDTask03(void *argument)
 	PID_init(&posiY,PID_POSITION,&kpidY[0],1000,200);
 	PID_init(&posiT,PID_POSITION,&kpidT[0],50,200);
 	PID_init(&speeA,PID_POSITION,&kpidA[0],999,50);
-  PID_init(&speeB,PID_POSITION,&kpidB[0],999,50);
+	PID_init(&speeB,PID_POSITION,&kpidB[0],999,50);
 	PID_init(&speeC,PID_POSITION,&kpidC[0],999,50);
-	PID_init(&speeD,PID_POSITION,&kpidD[0],999,50);
+	PID_init(&speeD,PID_POSITION,&kpidD[0],999,50);//进行pid初始化，为3个位置环和4个速度环
   /* Infinite loop */
   for(;;)
   {
@@ -343,19 +343,23 @@ void PIDTask03(void *argument)
 		}
 		if(osMessageQueueGet(MotorDPosiQueue09Handle,&Dcnt,NULL,0)!=osOK){
 			osDelay(1);
-		}
+		}//从队列读取数据，读取失败则延时一个时间片
+		
+		
 		if(flag==1&&cnt==200){
 			first_omega=Omega;
 			flag=0;
-		}
+			}//如果计数值和标志位都正确，更新锁定角度为读取角度
+		
 		if(first_omega>=360){
 			first_omega-=360;
 		}else if(first_omega<0){
 			first_omega+=360;
-		}
+		}//对锁定角度进行限幅处理
+		
 		if(cnt==200){
 			d_omega=first_omega-Omega;
-		}
+		}//只有更新了锁定角度之后再进行角度差计算，防止小车一开始乱动
 		/*******PS2 Remote Control Part*******/
 		
 		
@@ -375,34 +379,46 @@ void PIDTask03(void *argument)
       while(d_omega>180){d_omega-=360;}
       
 			}
+			
 			x_SetSpeed=PID_calc(&posiX,0,x_set);//x(-230-230)
 			y_SetSpeed=PID_calc(&posiY,0,y_set);//y(-230-230)
-			t_SetSpeed=PID_calc(&posiT,0,d_omega);//T(-540-540)
+			t_SetSpeed=PID_calc(&posiT,0,d_omega);//T(-540-540)对三个位置环进行计算
 			
+			/****************小陀螺行进
+			*如果小陀螺标志位为1则禁用角度环，防止自动角度修正
+			*a，b做临时变量，方便对新x，y速度计算
+			*用d——omega作为与前进方向的差值计算
+			*同时将角度转化为弧度
+			*/
 			if(tuoluo_flag==1){
 				t_SetSpeed=0;
 				fp32 a=x_SetSpeed,b=y_SetSpeed;
 				x_SetSpeed=a*cosf(-d_omega*PI/180.0f)-b*sinf(-d_omega*PI/180.0f);
 				y_SetSpeed=a*sinf(-d_omega*PI/180.0f)+b*cosf(-d_omega*PI/180.0f);
 			}
+			
+			
 			tar_speed[0]=x_SetSpeed+y_SetSpeed+t_SetSpeed+t_conSpeed+tuo_speed;
 			tar_speed[1]=x_SetSpeed-y_SetSpeed+t_SetSpeed+t_conSpeed+tuo_speed;
 			tar_speed[2]=x_SetSpeed+y_SetSpeed-t_SetSpeed-t_conSpeed-tuo_speed;
-			tar_speed[3]=x_SetSpeed-y_SetSpeed-t_SetSpeed-t_conSpeed-tuo_speed;
+			tar_speed[3]=x_SetSpeed-y_SetSpeed-t_SetSpeed-t_conSpeed-tuo_speed;//通过位置环3个速度结果对4个电机分别进行速度解算
+			
+			
 			pwm[0]=(uint16_t)fabs(PID_calc(&speeA,-now_speeA,tar_speed[0]));
 			pwm[1]=(uint16_t)fabs(PID_calc(&speeB,-now_speeB,tar_speed[1]));
 			pwm[2]=(uint16_t)fabs(PID_calc(&speeC,-now_speeC,tar_speed[2]));
-			pwm[3]=(uint16_t)fabs(PID_calc(&speeD,-now_speeD,tar_speed[3]));
+			pwm[3]=(uint16_t)fabs(PID_calc(&speeD,-now_speeD,tar_speed[3]));//速度环计算，并转化为pwm值
+			
 			for(int i=0;i<4;i++){
 				if(pwm[i]>999){
 					pwm[i]=999;
 				}
-			}
+			}//对pwm进行限幅
 		
 			PWMSet(AIN1_GPIO_Port,AIN2_GPIO_Port,AIN2_Pin,AIN1_Pin,pwm[0],&speeA,TIM_CHANNEL_1);
 			PWMSet(BIN1_GPIO_Port,BIN2_GPIO_Port,BIN1_Pin,BIN2_Pin,pwm[1],&speeB,TIM_CHANNEL_2);
 			PWMSet(CIN1_GPIO_Port,CIN2_GPIO_Port,CIN1_Pin,CIN2_Pin,pwm[2],&speeC,TIM_CHANNEL_3);
-			PWMSet(DIN1_GPIO_Port,DIN2_GPIO_Port,DIN1_Pin,DIN2_Pin,pwm[3],&speeD,TIM_CHANNEL_4);
+			PWMSet(DIN1_GPIO_Port,DIN2_GPIO_Port,DIN1_Pin,DIN2_Pin,pwm[3],&speeD,TIM_CHANNEL_4);//给各个电机进行转速与方向的设置
 			vTaskDelay(10);
 		
 	}
@@ -416,18 +432,19 @@ void PIDTask03(void *argument)
 * @retval None
 */
 /* USER CODE END Header_ps2Task04 */
+/**PS2手柄接收控制**/
 void ps2Task04(void *argument)
 {
   /* USER CODE BEGIN ps2Task04 */
-	uint8_t mode=0,key=0;
-	fp32 T_add=0;
+	uint8_t mode=0,key=0;//模式值与按键值
   /* Infinite loop */
   for(;;)
   {
-    key=PS2_DataKey();
+    key=PS2_DataKey();//读取按键值
 		if(key==PSB_SELECT){
 			mode=!mode;
-		}
+		}//如果按下select键则进行模式切换
+		
 		if(mode==0){
 			switch(key){
 				case PSB_PAD_UP:
@@ -441,7 +458,8 @@ void ps2Task04(void *argument)
 					break;
 				case PSB_PAD_RIGHT:
 					y_set=100;
-					break;
+					break;//前后左右定速移动
+				
 				case PSB_RED:
 					t_conSpeed=30;
 				
@@ -449,7 +467,8 @@ void ps2Task04(void *argument)
 				case PSB_PINK:
 					t_conSpeed=-30;
 				
-					break;
+					break;//定速转向
+				
 				case PSB_GREEN:
 					if(tuoluo_flag==0){
 						tuoluo_flag=1;
@@ -458,13 +477,14 @@ void ps2Task04(void *argument)
 						tuoluo_flag=0;
 						tuo_speed=0;
 					}
-					break;
+					break;//按下绿键则开启小陀螺模式
+					
 				default:
 					x_set=0;
 					y_set=0;
 					t_conSpeed=0;
 				
-					break;
+					break;//没有按键按下，所有速度清零
 			}
 		}else{
 			lx=PS2_AnologData(PSS_LX);
@@ -482,7 +502,9 @@ void ps2Task04(void *argument)
 			x_set=x_set*100/128;
 			y_set=y_set*100/128;
 			t_conSpeed=t_conSpeed*100/128;
-			}
+		}//摇杆模式（感觉个人摇杆好像不对劲，摇杆模式操控不正常）
+		
+			
 			vTaskDelay(20);
 		}
 		

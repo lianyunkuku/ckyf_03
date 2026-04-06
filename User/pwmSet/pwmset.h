@@ -10,6 +10,6 @@
 #include "gpio.h"
 
 
-void PWMSet(GPIO_TypeDef *port1,GPIO_TypeDef *port2,uint16_t pin1,uint16_t pin2,uint16_t pwm,pid_type_def *pidType,uint32_t channel);
+void PWMSet(GPIO_TypeDef *port1,GPIO_TypeDef *port2,uint16_t pin1,uint16_t pin2,uint16_t pwm,pid_type_def *pidType,uint32_t channel);//pwm…Ë÷√∫Ø ˝
 
 #endif

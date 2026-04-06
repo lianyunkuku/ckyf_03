@@ -105,14 +105,14 @@ int main(void)
   /* USER CODE BEGIN 2 */
 	 CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
   DWT->CYCCNT = 0;
-  DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+  DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;//作为delay_us_nos函数的初始化
   HAL_TIM_Base_Start(&htim2);
   HAL_TIM_Base_Start_IT(&htim3);
   HAL_TIM_PWM_Start(&htim2,TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim2,TIM_CHANNEL_2);
   HAL_TIM_PWM_Start(&htim2,TIM_CHANNEL_3);
-  HAL_TIM_PWM_Start(&htim2,TIM_CHANNEL_4);
-	PS2_SetInit();
+  HAL_TIM_PWM_Start(&htim2,TIM_CHANNEL_4);//启动定时器以及pwm
+	PS2_SetInit();//ps2接收初始化，需要在时钟初始化后面
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -175,6 +175,12 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+/*********GPIO外部中断**********/
+//作为软件编码器供电机使用
+//配置为双引脚上升下降沿触发->四倍频
+
+
+
  void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
   {
     if(GPIO_Pin==E1A_Pin||GPIO_Pin==E1B_Pin){
@@ -200,6 +206,10 @@ void SystemClock_Config(void)
   * @param  htim : TIM handle
   * @retval None
   */
+	
+	/***定时器3中断回调函数****/
+	//定时读取编码器值并传入队列
+	
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
